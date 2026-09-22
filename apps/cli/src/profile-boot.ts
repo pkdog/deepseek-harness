@@ -222,6 +222,32 @@ export interface ResolvedProfileRuntime {
   installAnchor: string
 }
 
+/**
+ * Select the module-fallback backend for one launch. A packaged executable
+ * always uses the runtime resolver because its dependency tree may live in a
+ * virtual filesystem. An ordinary launch defaults to runtime as well, except a
+ * TypeScript source launch: tsx projects workspace specifiers through tsconfig
+ * `paths` onto `src`, while the runtime resolver re-resolves each routed
+ * package from its declaring manifest and therefore selects the built `lib/`
+ * entry. Loading both planes gives one package two module identities, so the
+ * symbols its modules share no longer match across them. A source launch keeps
+ * the disk fallback, which holds every workspace package on the one tsx
+ * projection.
+ * @param packaged - whether this process is a packaged executable.
+ * @param sourceLaunch - whether the launcher module itself is TypeScript.
+ * @param requested - explicit caller selection; a packaged executable ignores it.
+ * @returns the backend the launch installs.
+ */
+export function resolveResolutionMode(
+  packaged: boolean,
+  sourceLaunch: boolean,
+  requested?: ProfileResolutionMode,
+): ProfileResolutionMode {
+  if (packaged) return 'runtime'
+  if (requested !== undefined) return requested
+  return sourceLaunch ? 'link' : 'runtime'
+}
+
 /** Options for {@link runProfile}. */
 export interface RunProfileOptions {
   /** This run's frozen environment snapshot, provided before any entry mounts. */
@@ -260,7 +286,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   )
 
   const packaged = (process as NodeJS.Process & { pkg?: unknown }).pkg !== undefined
-  const resolutionMode = packaged ? 'runtime' : options.resolutionMode ?? 'runtime'
+  const resolutionMode = resolveResolutionMode(packaged, import.meta.url.endsWith('.ts'), options.resolutionMode)
   const app: { current?: Context } = {}
   let disposal: Promise<void> | undefined
   const dispose = (): Promise<void> => disposal ??= (async () => {

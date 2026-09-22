@@ -12,7 +12,7 @@ profile 从自己的包项目加载插件配置项，而 Harness 包和所选 bu
 
 ## Decision
 
-profile 启动从磁盘 module fallback 使用的同一套依赖遍历生成一个不可变 `ResolutionGeneration`。launcher 默认使用 runtime 模式，把 generation 安装到 Node 的 ESM 与 CommonJS 解析器，不物化 fallback 链接。普通 Node 调用方和测试可以显式选择 link 模式以物化 generation，或选择 dual 模式以物化并校验它。`PluginPackages.replace()` 通过一次引用替换发布完整的新增型后继 generation。
+profile 启动从磁盘 module fallback 使用的同一套依赖遍历生成一个不可变 `ResolutionGeneration`。launcher 默认使用 runtime 模式，把 generation 安装到 Node 的 ESM 与 CommonJS 解析器，不物化 fallback 链接。TypeScript 源码启动是例外，默认使用 link 模式：tsx 把 workspace 标识符投影到 `src`，而 runtime 解析器会经由包 manifest 的 `exports` 把被路由的包重新解析到已构建的 `lib/`，混用两种后端会让同一个包被加载两次，其符号所标识的模块身份随之分裂。普通 Node 调用方和测试可以显式选择 link 模式以物化 generation，或选择 dual 模式以物化并校验它。`PluginPackages.replace()` 通过一次引用替换发布完整的新增型后继 generation。
 
 ### 唯一选包算法
 
@@ -74,7 +74,7 @@ runtime-only 启动流程不创建、更新或退休 symlink 和代理包。reso
 
 link、dual 与 runtime 模式使用同一种 generation schema 和依赖选择策略。link 模式持久化计算结果，runtime 模式只在进程内安装，dual 模式要求 Node 的磁盘结果与 generation 路由一致。
 
-普通 Node 调用方省略 `resolutionMode` 时，`dsh` launcher 选择 runtime 模式。pkg 可执行文件始终选择 runtime，Electron Host 在开发与打包构建中也会在挂载任何 profile 条目前显式选择 runtime。普通 Node 测试与底层嵌入方可以显式选择 link、dual 或 runtime。
+普通 Node 调用方省略 `resolutionMode` 时，`dsh` launcher 选择 runtime 模式；当 launcher 模块自身是 TypeScript 时则选择 link 模式，因为该启动已由 tsx 把 workspace 标识符投影到 `src`。pkg 可执行文件始终选择 runtime，Electron Host 在开发与打包构建中也会在挂载任何 profile 条目前显式选择 runtime。普通 Node 测试与底层嵌入方可以显式选择 link、dual 或 runtime。
 
 runtime 模式要求受支持的 Node Internal loader 接口，并且不会创建、更新或退休 fallback 链接。dual 模式保留链接写入，并在 Node 的磁盘结果与 generation 不同时失败。可写 profile 状态和包管理器事务不属于 resolver。
 

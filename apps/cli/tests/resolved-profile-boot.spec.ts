@@ -11,7 +11,7 @@ import {
 } from '@deepseek-ai/dsh-app-boot'
 import { installProxyFromEnvironment } from '@deepseek-ai/dsh-http-proxy'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runProfile } from '../src/profile-boot.ts'
+import { resolveResolutionMode, runProfile } from '../src/profile-boot.ts'
 
 vi.mock('@deepseek-ai/dsh-app-boot', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@deepseek-ai/dsh-app-boot')>()
@@ -31,6 +31,28 @@ afterEach(() => {
   vi.unstubAllEnvs()
   vi.resetAllMocks()
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true })
+})
+
+describe('resolveResolutionMode', () => {
+  it('defaults a TypeScript source launch to the disk fallback', () => {
+    // tsx projects workspace specifiers onto `src`; the runtime resolver would
+    // additionally pull each routed package's built `lib/` entry, giving one
+    // package two module identities.
+    expect(resolveResolutionMode(false, true)).toBe('link')
+  })
+
+  it('defaults a built launcher to the runtime resolver', () => {
+    expect(resolveResolutionMode(false, false)).toBe('runtime')
+  })
+
+  it('keeps runtime for a packaged executable even when the caller requests otherwise', () => {
+    expect(resolveResolutionMode(true, true, 'link')).toBe('runtime')
+  })
+
+  it('honors an explicit selection for an unpackaged launcher', () => {
+    expect(resolveResolutionMode(false, true, 'runtime')).toBe('runtime')
+    expect(resolveResolutionMode(false, false, 'dual')).toBe('dual')
+  })
 })
 
 describe('runProfile with an application-owned profile', () => {
@@ -91,7 +113,10 @@ describe('runProfile with an application-owned profile', () => {
   })
 
   it.each([
-    { selection: 'default', options: {}, mode: 'runtime' },
+    // This file loads through tsconfig `paths` from source, so the default
+    // selects the disk fallback; the runtime default is covered below for a
+    // built launcher.
+    { selection: 'default', options: {}, mode: 'link' },
     { selection: 'link', options: { resolutionMode: 'link' }, mode: 'link' },
     { selection: 'dual', options: { resolutionMode: 'dual' }, mode: 'dual' },
     { selection: 'runtime', options: { resolutionMode: 'runtime' }, mode: 'runtime' },

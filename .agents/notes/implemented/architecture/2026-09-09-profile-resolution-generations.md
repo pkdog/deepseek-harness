@@ -12,7 +12,7 @@ The runtime design preserves the existing selection rules rather than introducin
 
 ## Decision
 
-Profile startup computes one immutable `ResolutionGeneration` from the same dependency traversal that supplies the disk module fallback. The launcher defaults to runtime mode, which installs the generation into Node's ESM and CommonJS resolvers without materializing fallback links. Plain Node callers and tests can explicitly select link mode to materialize the generation or dual mode to materialize and verify it. `PluginPackages.replace()` publishes a complete additive successor with one reference replacement.
+Profile startup computes one immutable `ResolutionGeneration` from the same dependency traversal that supplies the disk module fallback. The launcher defaults to runtime mode, which installs the generation into Node's ESM and CommonJS resolvers without materializing fallback links. A TypeScript source launch is the exception and defaults to link mode: tsx projects workspace specifiers onto `src`, while the runtime resolver re-resolves a routed package through its manifest `exports` onto the built `lib/`, so mixing the backends loads one package twice and splits the module identity its symbols identify. Plain Node callers and tests can explicitly select link mode to materialize the generation or dual mode to materialize and verify it. `PluginPackages.replace()` publishes a complete additive successor with one reference replacement.
 
 ### One selection algorithm
 
@@ -74,7 +74,7 @@ Legacy disk state remains available to link-only launches, old processes, and ro
 
 Link, dual, and runtime modes use the same generation schema and dependency-selection policy. Link mode persists the computed result, runtime mode installs it only in the process, and dual mode requires Node's materialized result to equal the generation route.
 
-The `dsh` launcher selects runtime mode when an ordinary Node caller omits `resolutionMode`. A pkg executable always selects runtime mode, and the Electron Host explicitly selects runtime mode in both development and packaged builds before any profile row mounts. Plain Node tests and low-level embedders can explicitly select link, dual, or runtime.
+The `dsh` launcher selects runtime mode when an ordinary Node caller omits `resolutionMode`, and link mode when the launcher module itself is TypeScript, because that launch already has tsx projecting workspace specifiers onto `src`. A pkg executable always selects runtime mode, and the Electron Host explicitly selects runtime mode in both development and packaged builds before any profile row mounts. Plain Node tests and low-level embedders can explicitly select link, dual, or runtime.
 
 Runtime mode requires a supported Node Internal loader interface and does not create, update, or retire fallback links. Dual mode retains link writes and fails when Node's disk result differs from the generation. Writable profile state and package-manager transactions remain outside the resolver.
 
